@@ -10,7 +10,11 @@ function listConfiguredAccountIds(cfg: ClawdbotConfig): string[] {
   if (!accounts || typeof accounts !== "object") {
     return [];
   }
-  return Object.keys(accounts).filter(Boolean);
+  return [...new Set(
+    Object.keys(accounts)
+      .filter((accountId) => accountId.trim())
+      .map((accountId) => normalizeAccountId(accountId)),
+  )];
 }
 
 /**
@@ -38,17 +42,35 @@ export function resolveDefaultFeishuAccountId(cfg: ClawdbotConfig): string {
 }
 
 /**
+ * Resolve the configured account key for a normalized account id.
+ * Preserves the original config key casing so write paths can avoid shadow entries.
+ */
+export function resolveConfiguredFeishuAccountKey(
+  cfg: ClawdbotConfig,
+  accountId: string,
+): string | undefined {
+  const accounts = (cfg.channels?.feishu as FeishuConfig)?.accounts;
+  if (!accounts || typeof accounts !== "object") {
+    return undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(accounts, accountId)) {
+    return accountId;
+  }
+  const normalizedId = normalizeAccountId(accountId);
+  return Object.keys(accounts).find((key) => normalizeAccountId(key) === normalizedId);
+}
+
+/**
  * Get the raw account-specific config.
+ * Preserves mixed-case config keys by resolving through the normalized account id.
  */
 function resolveAccountConfig(
   cfg: ClawdbotConfig,
   accountId: string,
 ): FeishuAccountConfig | undefined {
   const accounts = (cfg.channels?.feishu as FeishuConfig)?.accounts;
-  if (!accounts || typeof accounts !== "object") {
-    return undefined;
-  }
-  return accounts[accountId];
+  const matchedKey = resolveConfiguredFeishuAccountKey(cfg, accountId);
+  return matchedKey && accounts ? accounts[matchedKey] : undefined;
 }
 
 /**
